@@ -3,7 +3,6 @@ package gp
 import (
 	"context"
 	"sync"
-	"time"
 )
 
 // goroutinePool is a pool of goroutines.
@@ -81,8 +80,6 @@ func (g *goroutinePool) Start(ctx context.Context) *goroutinePool {
 						close(g.inputChannel)
 					})
 					return
-				default:
-					time.Sleep(time.Millisecond * 100)
 				}
 			}
 		}()
@@ -150,8 +147,6 @@ func (g *goroutinePoolLimitedTaskCount) Start(ctx context.Context) *goroutinePoo
 						close(g.inputChannel)
 					})
 					return
-				default:
-					time.Sleep(time.Millisecond * 100)
 				}
 			}
 		}()
