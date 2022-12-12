@@ -11,6 +11,11 @@ type goroutinePool struct {
 	inputChannel    chan []any   // inputChannel is the channel that the goroutines will read from.
 	inputChannelCap int          // inputChannelCap is the capacity of the input channel.
 	worker          func(...any) // worker is the function that the goroutines will execute.
+	isStart         bool
+}
+
+func (g *goroutinePool) GetGoroutineCount() int {
+	return g.goroutineCount
 }
 
 // New creates a goroutine pool.
@@ -66,6 +71,7 @@ func (g *goroutinePool) Start(ctx context.Context) *goroutinePool {
 	g.check()
 	g.inputChannel = make(chan []any, g.inputChannelCap)
 	once := &sync.Once{}
+	g.isStart = true
 	for i := 0; i < g.goroutineCount; i++ {
 		go func() {
 			for {
@@ -87,10 +93,34 @@ func (g *goroutinePool) Start(ctx context.Context) *goroutinePool {
 	return g
 }
 
+func (g *goroutinePool) AddGoroutineCount(count int) *goroutinePool {
+	g.goroutineCount = g.goroutineCount + count
+	if g.isStart {
+		for i := 0; i < count; i++ {
+			go func() {
+				for {
+					select {
+					case inputValue, ok := <-g.inputChannel:
+						if !ok {
+							return
+						}
+						g.worker(inputValue...)
+					}
+				}
+			}()
+		}
+	}
+	return g
+}
+
 // goroutinePoolLimitedTaskCount is a pool of goroutines with limit task.
 type goroutinePoolLimitedTaskCount struct {
 	goroutinePool
 	wg sync.WaitGroup
+}
+
+func (g *goroutinePoolLimitedTaskCount) GetGoroutineCount() int {
+	return g.goroutineCount
 }
 
 // SetGoroutineCount sets the goroutine count.
@@ -132,6 +162,7 @@ func (g *goroutinePoolLimitedTaskCount) Start(ctx context.Context) *goroutinePoo
 	g.check()
 	g.inputChannel = make(chan []any, g.inputChannelCap)
 	once := &sync.Once{}
+	g.isStart = true
 	for i := 0; i < g.goroutineCount; i++ {
 		go func() {
 			for {
@@ -150,6 +181,27 @@ func (g *goroutinePoolLimitedTaskCount) Start(ctx context.Context) *goroutinePoo
 				}
 			}
 		}()
+	}
+	return g
+}
+
+func (g *goroutinePoolLimitedTaskCount) AddGoroutineCount(count int) *goroutinePoolLimitedTaskCount {
+	g.goroutineCount = g.goroutineCount + count
+	if g.isStart {
+		for i := 0; i < count; i++ {
+			go func() {
+				for {
+					select {
+					case inputValue, ok := <-g.inputChannel:
+						if !ok {
+							return
+						}
+						g.worker(inputValue...)
+						g.wg.Done()
+					}
+				}
+			}()
+		}
 	}
 	return g
 }
